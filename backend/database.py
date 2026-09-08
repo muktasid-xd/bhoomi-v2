@@ -27,7 +27,7 @@ def _init_db():
             air_temp_c REAL,
             air_humidity_percent REAL,
             light_percent REAL,
-            soil_type REAL,
+            soil_type TEXT,
             crop TEXT,
             origin TEXT DEFAULT 'local',
             status TEXT DEFAULT 'pending'
@@ -51,8 +51,8 @@ def _init_db():
             air_humidity_percent REAL,
             light_percent REAL,
             soil_type TEXT,
-            air_summary TEXT,
-            ai_recommend_action TEXT,
+            ai_summary TEXT,
+            ai_recommended_action TEXT,
             ai_urgency TEXT,
             analysis_source TEXT
         )
