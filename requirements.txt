@@ -3,6 +3,17 @@ fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
 pydantic>=2.6.0
 
+# Hardware & Communication (BLE)
+bleak>=0.21.0
+
+# AI & LLM Integration
+google-genai>=2.0.0
+groq>=1.0.0
+
+# Security & Authentication
+cryptography>=42.0.0
+google-auth>=2.25.0
+
 # HTTP & Network Client
 requests>=2.31.0
 
