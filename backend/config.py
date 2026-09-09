@@ -18,3 +18,8 @@ BLE_ENABLED = os.getenv("BLE_ENABLED").lower() == "true"
 
 # BUFFER SIZE
 BUFFER_TARGET_SIZE = int(os.getenv("BUFFER_TARGET_SIZE"))
+
+# LOCAL SLM
+OLLAMA_HOST = os.getenv("OLLAMA_HOST")
+LOCAL_SLM_MODEL = os.getenv("LOCAL_SLM_MODEL", "gemma2:2b")
+LOCAL_SLM_TIMEOUT_SECONDS = int(os.getenv("LOCAL_SLM_TIMEOUT_SECONDS", "30"))
