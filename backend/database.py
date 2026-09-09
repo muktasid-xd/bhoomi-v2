@@ -16,7 +16,7 @@ def _connect():
 # Creates two tables if they don't already exist:
 # 1. 'pending_readings' to hold raw, 50-sample filtered sensor data.
 # 2. 'ai_reviewed_records' to hold finalized records processed by Gemini AI.
-def _init_db():
+def init_db():
     conn = _connect()
     cur = conn.cursor()
 
@@ -70,7 +70,7 @@ def _init_db():
     conn.close()
 
 # ---------------------------
-# DATABSE 1
+# DATABASE 1
 # ---------------------------
 
 # Saves a newly averaged 50-sample sensor packet into 'pending_readings'.
@@ -240,3 +240,69 @@ def update_pending_crop(reading_id: int, crop: str):
     )
     conn.commit()
     conn.close()
+
+# ---------------------------
+# DATABASE 2
+# ---------------------------
+
+# Inserts a finalized AI analysis record into the 'ai_reviewed_records' table.
+# Combines raw sensor readings ('entry') with Gemini AI outputs ('ai_result')
+# and the analysis source string, then returns the generated primary key ID.
+def insert_reviewed_record(entry: dict, ai_result: dict, analysis_source: str) -> int:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO ai_reviewed_records (
+            timestamp, latitude, longitude, crop, moisture_percent,
+            ph, ec, soil_temp_c, air_temp_c, air_humidity_percent,
+            light_percent, soil_type, ai_summary,
+            ai_recommended_action, ai_urgency, analysis_source
+        )   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+
+        (
+            entry.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+            entry.get("latitude"),
+            entry.get("longitude"),
+            entry.get("crop"),
+            entry.get("moisture_percent"),
+            entry.get("ph"),
+            entry.get("ec"),
+            entry.get("soil_temp_c"),
+            entry.get("air_temp_c"),
+            entry.get("air_humidity_percent"),
+            entry.get("light_percent"),
+            entry.get("soil_type"),
+            ai_result.get("ai_summary"),
+            ai_result.get("ai_recommended_action"),
+            ai_result.get("ai_urgency"),
+            analysis_source,
+        ),
+    )
+
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+
+    return new_id
+
+
+# Fetches all records from 'ai_reviewed_records' ordered by creation ID descending (newest first).
+# Iterates through cursor results to convert each sqlite3.Row object into a standard dictionary.
+#
+# RETURNS:
+#   list[dict]: A list of dictionaries representing every stored AI-reviewed soil record.
+def list_reviewed_records():
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM ai_reviewed_records ORDER BY id DESC"
+    )
+
+    rows = []
+    for row in cur.fetchall():
+        rows.append(dict(row))
+
+    conn.close()
+    return rows
