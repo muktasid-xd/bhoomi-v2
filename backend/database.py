@@ -161,3 +161,82 @@ def insert_shared_reading(entry: dict) -> int:
     conn.close()
 
     return new_id
+
+
+# Fetches all unreviewed sensor readings from 'pending_readings' (newest first)
+# and converts each database row into a dictionary for Gemini AI processing.
+def list_pending_readings():
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM pending_readings WHERE status = 'pending' ORDER BY id DESC"
+    )
+
+    rows = []
+    for row in cur.fetchall():  #cur.fetchall() --> row rows
+        rows.append(dict(row))
+
+    conn.close()
+    return rows
+
+
+# Fetches a single sensor reading from 'pending_readings' using its unique ID.
+#
+# PARAMETERS:
+#   reading_id (int): The unique database row ID to search for.
+#
+# RETURNS:
+#   dict: A dictionary of sensor metrics if the record exists.
+#   None: If no record is found with the given ID (prevents runtime crashes).
+def get_pending_readings(reading_id: int):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM pending_readings WHERE id = ?", (reading_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if row is not None:
+        return dict(row)
+    else:
+        return None
+
+
+# Permanently removes a reading from 'pending_readings' by its ID.
+# Use this after a record is successfully processed or no longer needed.
+def hard_delete_pending_readings(reading_id: int):
+    """Fully remove a row after successfully sending it to AI"""
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM pending_readings WHERE id = ?", (reading_id,)
+    )
+    conn.commit()
+    conn.close()
+
+
+# Updates the processing status (e.g., 'reviewed', 'error') of a pending reading.
+# Uses parameterized queries to safely set status by reading_id and commits changes.
+def mark_pending_status(reading_id: int, status: str):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE pending_readings SET status = ? WHERE id = ?",
+        (status, reading_id),
+    )
+    conn.commit()
+    conn.close()
+
+# Assigns or updates the crop type for an unreviewed reading in 'pending_readings'.
+# Used when raw sensor data is initially saved without a crop ('unidentified')
+# so AI has the correct crop context during AI analysis.
+def update_pending_crop(reading_id: int, crop: str):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE pending_readings SET crop = ? WHERE id = ?",
+        (crop, reading_id),
+    )
+    conn.commit()
+    conn.close()
