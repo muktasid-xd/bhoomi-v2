@@ -66,8 +66,117 @@ def init_db():
         """
     )
 
+    # -- 2.0 --
+    try:
+        cur.execute(
+            "ALTER TABLE pending_readings ADD COLUMN variety TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cur.execute(
+            "ALTER TABLE ai_reviewed_records ADD COLUMN variety TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    # --- NEW TABLE (2.0): crop_thresholds ---
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS crop_thresholds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            crop TEXT NOT NULL,
+            variety TEXT,
+            moisture_min REAL,
+            moisture_max REAL,
+            ph_min REAL,
+            ph_max REAL,
+            ec_min REAL,
+            ec_max REAL,
+            soil_temp_min REAL,
+            soil_temp_max REAL,
+            air_temp_min REAL,
+            air_temp_max REAL,
+            air_humidity_min REAL,
+            air_humidity_max REAL,
+            light_min REAL,
+            light_max REAL,
+            soil_type_suitable TEXT
+        )
+        """
+    )
+
+    # NEW FOR 2.0: index so per-diagnosis lookups on (crop, variety)
+    # stay fast — this table is read on every AI review request.
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_crop_thresholds_crop "
+        "ON crop_thresholds(crop, variety)"
+    )
+
+    # NEW TABLE FOR 2.0: amendment_rules
+    # WHY: universal default fix for a given factor/direction
+    # (e.g. ph + LOW -> lime), used unless a crop-specific override
+    # exists in amendment_rules_override below.
+    # Column Breakdown:
+    # - id: Unique identifier for each rule record (e.g., 1, 2, 3)
+    # - factor: Sensor parameter being checked (e.g., 'ph', 'moisture', 'ec', 'soil_temp')
+    # - direction: Deviation direction from ideal safe range (e.g., 'LOW', 'HIGH')
+    # - amendment_name: Default material or action recommended to correct the issue (e.g., 'Agricultural Lime', 'Elemental Sulfur', 'Drip Irrigation')
+    # - unit: Measurement unit used for dosage calculations (e.g., 'kg/acre', 'liters/sq_m', 'grams/plant')
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS amendment_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factor TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            amendment_name TEXT NOT NULL,
+            unit TEXT
+        )
+        """
+    )
+
+    # NEW TABLE FOR 2.0: amendment_rules_override
+    # WHY: some crops (e.g. potato + over-liming) need a different fix
+    # than the universal default. Keeping exceptions in their own
+    # table avoids complicating the common case for every other crop.
+    # "unit" column CONFIRMED PRESENT — was flagged as a late addition
+    # in Project State, easy to lose if copying from an older draft.
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS amendment_rules_override (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            crop TEXT NOT NULL,
+            factor TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            amendment_name TEXT NOT NULL,
+            unit TEXT,
+            note TEXT
+        )
+        """
+    )
+
+    # NEW TABLE FOR 2.0: crop_dosage_factors
+    # WHY: dosage = deficit x crop_factor. Only the factors actually
+    # used are stored (no speculative columns) so a mild vs severe
+    # reading for the same crop gets a proportionate, not flat, dose.
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS crop_dosage_factors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            crop TEXT NOT NULL UNIQUE,
+            lime_factor REAL,
+            sulfur_factor REAL,
+            water_factor REAL,
+            fertilizer_factor REAL
+        )
+        """
+    )
+
     conn.commit()
     conn.close()
+
+
 
 # ---------------------------
 # DATABASE 1
