@@ -9,3 +9,5 @@ env/
 .vscode/
 .idea/
 .DS_Store
+.pio/
+hardware/.pio/
