@@ -72,6 +72,8 @@ def create_database(db_path = DB_PATH):
             n_factor REAL,
             p_factor REAL,
             k_factor REAL,
+            ph_low_factor REAL,
+            ph_high_factor REAL,
             UNIQUE(crop_stage_id)
         );
     """)
