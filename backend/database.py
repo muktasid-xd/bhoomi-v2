@@ -1,10 +1,7 @@
 import sqlite3
 from config import DB_PATH
 
-# CROPS
-# CROP THRESHOLDS
-# SOLUTION
-# NPK FACTORS
+# crop_stages, crop_thresholds, universal_solution, crop_solution, crop_factors  
 def create_database(db_path = DB_PATH):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
