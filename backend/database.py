@@ -78,12 +78,12 @@ def create_database(db_path = DB_PATH):
     conn.close()
     print(f"Database created at {db_path}")
 
-def create_sensor_reading_table(db_path = SENSOR_DB_PATH):
+def create_sensor_readings(db_path = DB_PATH):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS sensor_readings (
+        CREATE TABLE IF NOT EXISTS raw_sensor_readings (
             id INTEGER PRIMARY KEY,
             device_name TEXT,
             timestamp TEXT,
@@ -97,7 +97,36 @@ def create_sensor_reading_table(db_path = SENSOR_DB_PATH):
         );
     """)
 
+def create_pending_readings(db_path = DB_PATH):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("PRAGMA foreign_keys = ON;")
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pending_readings (
+            id INTEGER PRIMARY KEY,
+            crop_stage_id INTEGER REFERENCES crop_stages(id),
+            ph REAL,
+            ec REAL,
+            soil_temp TEXT,
+            soil_moist TEXT,
+            air_temp REAL,
+            air_moist REAL,
+            light REAL,
+            k REAL,
+            n REAL,
+            p REAL,
+            lat REAL,
+            long REAL,
+            plot_id INTEGER,
+            timestamp TEXT,
+            status TEXT,
+            source_device TEXT
+        );
+    """)
+
 if __name__ == "__main__":
     create_database()
-    create_sensor_reading_table()
+    create_sensor_readings()
+    create_pending_readings()
 
