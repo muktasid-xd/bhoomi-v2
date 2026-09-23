@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ESP32 Sensor Test</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 40px auto; }
+  button { padding: 8px 14px; margin: 4px 0; cursor: pointer; }
+  #sensorList li { list-style: none; margin: 6px 0; }
+  #sensorList button { width: 220px; text-align: left; }
+  #sensorList button:disabled { background: #ddd; color: #888; cursor: not-allowed; }
+  #log { border: 1px solid #ccc; padding: 8px; height: 200px; overflow-y: auto; font-size: 13px; white-space: pre-wrap; }
+  #status { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h2>ESP32 Sensor Test</h2>
+
+<div id="status">Not connected</div>
+<button id="connectBtn">Connect</button>
+<button id="sessionBtn" disabled>New Session</button>
+
+<h3>Sensors</h3>
+<ul id="sensorList">
+  <li><button data-sensor="DHT11">DHT11 (Temp + Humidity)</button></li>
+  <li><button data-sensor="SOIL_MOISTURE">Soil Moisture</button></li>
+  <li><button data-sensor="SOIL_TEMP">Soil Temperature (DS18B20)</button></li>
+  <li><button data-sensor="LIGHT">Light (LDR)</button></li>
+  <li><button data-sensor="EC">EC Probe (not connected)</button></li>
+  <li><button data-sensor="PH">pH Sensor (not connected)</button></li>
+</ul>
+
+<div id="progress"></div>
+<h4>Log</h4>
+<div id="log"></div>
+
+<script>
+const SERVICE_UUID      = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const COMMAND_CHAR_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const DATA_CHAR_UUID    = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const BACKEND_URL       = "http://localhost:5000";
+
+let device, server, commandChar, dataChar;
+let sessionId = null;
+
+const statusEl   = document.getElementById("status");
+const logEl      = document.getElementById("log");
+const progressEl = document.getElementById("progress");
+
+function log(msg) {
+  logEl.textContent += msg + "\n";
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+document.getElementById("connectBtn").addEventListener("click", async () => {
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SERVICE_UUID] }]
+    });
+    server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    commandChar = await service.getCharacteristic(COMMAND_CHAR_UUID);
+    dataChar    = await service.getCharacteristic(DATA_CHAR_UUID);
+
+    await dataChar.startNotifications();
+    dataChar.addEventListener("characteristicvaluechanged", onReading);
+
+    statusEl.textContent = "Connected to " + device.name;
+    document.getElementById("sessionBtn").disabled = false;
+    log("Connected.");
+  } catch (err) {
+    log("Connect failed: " + err);
+  }
+});
+
+document.getElementById("sessionBtn").addEventListener("click", async () => {
+  const res = await fetch(BACKEND_URL + "/session/new", { method: "POST" });
+  const data = await res.json();
+  sessionId = data.session_id;
+  log("New session: " + sessionId);
+
+  document.querySelectorAll("#sensorList button").forEach(btn => btn.disabled = false);
+});
+
+document.querySelectorAll("#sensorList button").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (!commandChar) { log("Not connected yet."); return; }
+    const sensor = btn.dataset.sensor;
+    const encoder = new TextEncoder();
+    await commandChar.writeValue(encoder.encode(sensor));
+    log("Requested sensor: " + sensor);
+    progressEl.textContent = sensor + ": stabilizing (30s)...";
+    btn.disabled = true; // re-enabled by user starting a new session, or manually if needed
+  });
+});
+
+async function onReading(event) {
+  const decoder = new TextDecoder();
+  const jsonStr = decoder.decode(event.target.value);
+  let reading;
+  try {
+    reading = JSON.parse(jsonStr);
+  } catch (e) {
+    log("Bad JSON from ESP32: " + jsonStr);
+    return;
+  }
+
+  progressEl.textContent =
+    reading.sensor + ": reading " + reading.reading_index + " of 15 -> " + reading.value;
+  log(JSON.stringify(reading));
+
+  // forward as-is to backend
+  try {
+    await fetch(BACKEND_URL + "/reading", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reading)
+    });
+  } catch (e) {
+    log("Backend post failed: " + e);
+  }
+}
+</script>
+
+</body>
+</html>

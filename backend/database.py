@@ -1,5 +1,5 @@
 import sqlite3
-from config import DB_PATH
+from config import DB_PATH, SENSOR_DB_PATH
 
 # crop_stages, crop_thresholds, universal_solution, crop_solution, crop_factors  
 def create_database(db_path = DB_PATH):
@@ -55,7 +55,6 @@ def create_database(db_path = DB_PATH):
             id INTEGER PRIMARY KEY,
             crop_stage_id INTEGER NOT NULL REFERENCES crop_stages(id),
             parameter TEXT NOT NULL,
-            trigger_state TEXT NOT NULL,
             points_to TEXT NOT NULL,
             UNIQUE(crop_stage_id, parameter, trigger_state)
         );
@@ -78,7 +77,27 @@ def create_database(db_path = DB_PATH):
     conn.commit()
     conn.close()
     print(f"Database created at {db_path}")
-    
+
+def create_sensor_reading_table(db_path = SENSOR_DB_PATH):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sensor_readings (
+            id INTEGER PRIMARY KEY,
+            device_name TEXT,
+            timestamp TEXT,
+            ec REAL,
+            ph REAL,
+            air_moist REAL,
+            air_temp REAL,
+            soil_moist REAL,
+            soil_temp REAL,
+            light REAL
+        );
+    """)
+
 if __name__ == "__main__":
     create_database()
+    create_sensor_reading_table()
 

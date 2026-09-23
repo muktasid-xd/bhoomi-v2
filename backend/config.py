@@ -8,6 +8,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Database
 DB_PATH = os.getenv("DB_PATH")
+SENSOR_DB_PATH = os.getenv("SENSOR_DB_PATH")
 
 # BLE
 BLE_DEVICE_NAME = os.getenv("BLE_DEVICE_NAME", "BHOOMI_PROBE")

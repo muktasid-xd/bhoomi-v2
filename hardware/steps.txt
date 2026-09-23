@@ -1,0 +1,18 @@
+Steps to run and test:
+
+1. ESP32 - power it on via USB. Open serial monitor and confirm it shows "BLE advertising started, waiting for connection..."
+
+2. Backend - open terminal, run these two commands:
+venv/Scripts/Activate
+python connect.py
+Leave this terminal running, do not close it.
+
+3. Frontend - open frontend.html in Chrome, either by double clicking the file or running start frontend.html
+
+4. Click Connect button in the browser. A native Chrome popup will appear. Select ESP32_SoilSensorNode from the list.
+
+5. Click New Session button.
+
+6. Click any one sensor button, for example Soil Moisture. Watch the Log box on the page. It should first show stabilizing for 30 seconds, then readings should appear every 3 seconds after that.
+
+If anything fails at step 4, that usually means ESP32 is not advertising or wrong UUID. If step 6 shows no readings, check the serial monitor for errors on the ESP32 side.
