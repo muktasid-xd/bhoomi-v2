@@ -1,5 +1,5 @@
 import sqlite3
-from config import DB_PATH, SENSOR_DB_PATH
+from config import DB_PATH
 
 # crop_stages, crop_thresholds, universal_solution, crop_solution, crop_factors  
 def create_database(db_path = DB_PATH):
@@ -83,7 +83,7 @@ def create_sensor_readings(db_path = DB_PATH):
     cur = conn.cursor()
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS raw_sensor_readings (
+        CREATE TABLE IF NOT EXISTS readings_raw (
             id INTEGER PRIMARY KEY,
             device_name TEXT,
             timestamp TEXT,
@@ -93,9 +93,14 @@ def create_sensor_readings(db_path = DB_PATH):
             air_temp REAL,
             soil_moist REAL,
             soil_temp REAL,
-            light REAL
+            light REAL,
+            lat REAL,
+            long REAL
         );
     """)
+
+    conn.commit()
+    conn.close()
 
 def create_pending_readings(db_path = DB_PATH):
     conn = sqlite3.connect(db_path)
@@ -103,7 +108,7 @@ def create_pending_readings(db_path = DB_PATH):
     cur.execute("PRAGMA foreign_keys = ON;")
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS pending_readings (
+        CREATE TABLE IF NOT EXISTS readings_pending (
             id INTEGER PRIMARY KEY,
             crop_stage_id INTEGER REFERENCES crop_stages(id),
             ph REAL,
@@ -125,8 +130,45 @@ def create_pending_readings(db_path = DB_PATH):
         );
     """)
 
+    conn.commit()
+    conn.close()
+
+def create_readings_history(db_path = DB_PATH):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("PRAGMA foreign_keys =  on;")
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS readings_history (
+            id INTEGER PRIMARY KEY,
+            crop_stage_id INTEGER REFERENCES crop_stages(id),
+            analysis_source TEXT,
+            recommendation TEXT,
+            status TEXT,
+            ph REAL,
+            ec REAL,
+            soil_temp TEXT,
+            soil_moist TEXT,
+            air_temp REAL,
+            air_moist REAL,
+            light REAL,
+            k REAL,
+            n REAL,
+            p REAL,
+            lat REAL,
+            long REAL,
+            plot_id INTEGER,
+            timestamp TEXT,
+            source_device TEXT            
+        );
+    """)
+
+    conn.commit()
+    conn.close()
+
 if __name__ == "__main__":
     create_database()
     create_sensor_readings()
     create_pending_readings()
+    create_readings_history()
 
