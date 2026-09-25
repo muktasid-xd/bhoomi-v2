@@ -105,3 +105,11 @@ def save_readings(db_path = DB_PATH, word_data = calibrated_values):
 
     conn.close()
     return result    
+
+def new_session(db_path = DB_PATH):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM readings_raw")
+    conn.commit()
+    conn.close()
