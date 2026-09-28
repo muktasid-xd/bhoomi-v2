@@ -2,6 +2,7 @@
 
 Low-cost soil health monitoring for small-scale farmers in India.
 A battery-powered ESP32 probe measures the soil, and a local web app turns the numbers into a plain-language recommendation: what is wrong with the soil and what to do about it.
+Cheap, reliable and offline service availability.
 
 Built by Team Eureka for Smart India Hackathon 2026.
 
