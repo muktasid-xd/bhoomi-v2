@@ -2,6 +2,7 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
 pydantic>=2.6.0
+flask>=3.0.0
 
 # Hardware & Communication (BLE)
 bleak>=0.21.0
@@ -24,4 +25,5 @@ python-dotenv>=1.0.0
 pytest>=8.0.0
 httpx>=0.27.0
 
-paho-mqtt
+# IoT & Messaging
+paho-mqtt>=1.6.1

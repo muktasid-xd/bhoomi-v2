@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bhoomi</title>
+<style>
+  :root { --green:#2e7d32; --bg:#f4f1e8; --card:#fff; --line:#ddd6c5; --text:#2b2b2b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Segoe UI, Arial, sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--green); color:#fff; padding:12px 20px; display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:22px; }
+  nav button { background:transparent; color:#fff; border:none; padding:8px 14px; font-size:15px; cursor:pointer; border-radius:6px; }
+  nav button.active { background:rgba(255,255,255,0.25); font-weight:600; }
+  main { max-width:900px; margin:20px auto; padding:0 16px; }
+  .hidden { display:none; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .badge { background:#e8f0e8; padding:3px 10px; border-radius:12px; font-size:13px; }
+  .time { color:#777; font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; }
+  label { display:flex; flex-direction:column; font-size:13px; color:#555; gap:3px; }
+  input, select { padding:7px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+  button { padding:9px 16px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; font-size:14px; }
+  button.primary { background:var(--green); color:#fff; border-color:var(--green); }
+  button.danger { color:#b3261e; border-color:#e6b8b4; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  .actions { margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; }
+  .bar { height:14px; background:#e5e0d0; border-radius:8px; overflow:hidden; margin:14px 0; }
+  .bar div { height:100%; width:0; background:var(--green); transition:width 0.4s; }
+  .big { font-size:18px; margin:6px 0; }
+  .empty { color:#777; text-align:center; padding:30px 0; }
+  .pill { padding:3px 12px; border-radius:12px; color:#fff; font-size:13px; text-transform:uppercase; }
+  .pill.good { background:#2e7d32; } .pill.caution { background:#e0a100; } .pill.problem { background:#c62828; }
+  pre.reco { white-space:pre-wrap; font-family:inherit; font-size:15px; margin:8px 0; line-height:1.5; }
+  details { margin-top:10px; } summary { cursor:pointer; color:#555; }
+  table { border-collapse:collapse; margin-top:8px; } td { padding:3px 14px 3px 0; font-size:14px; }
+  h2 { margin:22px 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌱 Bhoomi</h1>
+  <nav>
+    <button id="nav-connect" onclick="showPage('connect')">Connect</button>
+    <button id="nav-queue" onclick="showPage('queue')">Queue</button>
+    <button id="nav-report" onclick="showPage('report')">Soil Report</button>
+  </nav>
+</header>
+
+<main>
+  <section id="page-connect">
+    <div class="card">
+      <h2 style="margin-top:0">Probe session</h2>
+      <p>Power on the probe and wait for its screen to show Ready. Then press Start.</p>
+      <div class="big" id="status-text">Press Start to begin.</div>
+      <div class="bar"><div id="status-bar"></div></div>
+      <div class="actions">
+        <button class="primary" id="btn-start" onclick="startSession()">Start New Session</button>
+        <button class="primary hidden" id="btn-proceed" onclick="proceedSession()">Proceed</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-queue" class="hidden">
+    <div class="actions" style="margin:0 0 14px">
+      <button class="primary" onclick="addManual()">+ Add Manual Reading</button>
+    </div>
+    <div id="queue-list"></div>
+  </section>
+
+  <section id="page-report" class="hidden">
+    <h2 style="margin-top:0">Latest report</h2>
+    <div id="latest-box"></div>
+    <h2>History</h2>
+    <div id="history-list"></div>
+  </section>
+</main>
+
+<script>
+var NUMS = [["ph","pH"],["ec","EC"],["air_temp","Air temp (°C)"],["air_moist","Air humidity (%)"],
+            ["n","Nitrogen (N)"],["p","Phosphorus (P)"],["k","Potassium (K)"]];
+var LABELS = {
+  soil_temp: ["Soil temp", ["cool","warm","hot"]],
+  soil_moist: ["Soil moisture", ["dry","moist","saturated","waterlogged"]],
+  light: ["Light", ["cloudy","partly cloudy","sunny"]]
+};
+var NAMES = {ph:"pH", ec:"EC", soil_temp:"Soil temp", soil_moist:"Soil moisture", air_temp:"Air temp (°C)",
+             air_moist:"Air humidity (%)", light:"Light", n:"Nitrogen", p:"Phosphorus", k:"Potassium"};
+var crops = [];
+var pollTimer = null;
+var justProceeded = false;
+
+function esc(t) {
+  if (t === null || t === undefined) return "";
+  return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function fmt(v) {
+  if (v === null || v === undefined) return "";
+  return Math.round(v * 100) / 100;
+}
+
+async function api(path, method, body) {
+  var opts = { method: method || "GET", headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  try {
+    var res = await fetch(path, opts);
+    return await res.json();
+  } catch (e) {
+    return { ok: false, message: "Cannot reach the server. Is api.py running?" };
+  }
+}
+
+function showPage(name) {
+  ["connect", "queue", "report"].forEach(function (p) {
+    document.getElementById("page-" + p).classList.toggle("hidden", p !== name);
+    document.getElementById("nav-" + p).classList.toggle("active", p === name);
+  });
+  if (name === "queue") loadQueue();
+  if (name === "report") loadReport();
+  if (name === "connect") updateStatus();
+}
+
+/* ---------- Connect ---------- */
+
+async function startSession() {
+  var r = await api("/session/start", "POST");
+  if (!r.ok) { alert(r.message); return; }
+  justProceeded = false;
+  document.getElementById("status-text").textContent = "Starting...";
+  document.getElementById("btn-start").disabled = true;
+  document.getElementById("btn-proceed").classList.add("hidden");
+  if (!pollTimer) pollTimer = setInterval(updateStatus, 2000);
+  setTimeout(updateStatus, 1000);
+}
+
+async function updateStatus() {
+  var s = await api("/session/status");
+  if (s.ok === false) { document.getElementById("status-text").textContent = s.message; return; }
+
+  var text = document.getElementById("status-text");
+  var bar = document.getElementById("status-bar");
+  var start = document.getElementById("btn-start");
+  var proceed = document.getElementById("btn-proceed");
+  var running = ["searching", "warming", "reading"].indexOf(s.state) >= 0;
+
+  if (s.state === "idle" || (s.state === "done" && justProceeded)) {
+    text.textContent = "Press Start to begin.";
+    bar.style.width = "0%";
+  } else if (s.state === "reading") {
+    text.textContent = "Reading " + s.saved + " of " + s.total;
+    bar.style.width = (s.saved / s.total * 100) + "%";
+  } else {
+    text.textContent = s.message;
+    bar.style.width = (s.state === "done" ? 100 : 0) + "%";
+  }
+
+  start.disabled = running;
+  proceed.classList.toggle("hidden", !(s.state === "done" && !justProceeded));
+
+  if (running && !pollTimer) pollTimer = setInterval(updateStatus, 2000);
+  if (!running && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function proceedSession() {
+  var r = await api("/session/proceed", "POST");
+  if (!r.ok) { alert(r.message); return; }
+  justProceeded = true;
+  showPage("queue");
+}
+
+/* ---------- Queue ---------- */
+
+async function fillStages(crop, stageSel, selectedId) {
+  stageSel.innerHTML = '<option value="">Select stage</option>';
+  if (!crop) return;
+  var rows = await api("/stages?crop=" + encodeURIComponent(crop));
+  if (!Array.isArray(rows)) return;
+  rows.forEach(function (row) {
+    stageSel.innerHTML += '<option value="' + row.id + '">' + esc(row.stage) + '</option>';
+  });
+  if (selectedId) stageSel.value = selectedId;
+}
+
+async function fillCrops(card, r) {
+  var cropSel = card.querySelector(".f-crop");
+  var stageSel = card.querySelector(".f-stage");
+  cropSel.innerHTML = '<option value="">Select crop</option>';
+  crops.forEach(function (c) { cropSel.innerHTML += '<option>' + esc(c) + '</option>'; });
+  cropSel.value = r.crop || "";
+  await fillStages(cropSel.value, stageSel, r.crop_stage_id);
+  cropSel.onchange = function () { fillStages(cropSel.value, stageSel, null); };
+}
+
+function collect(card) {
+  var body = {};
+  card.querySelectorAll("[data-f]").forEach(function (el) { body[el.dataset.f] = el.value; });
+  body.crop_stage_id = card.querySelector(".f-stage").value;
+  return body;
+}
+
+function makeCard(r) {
+  var card = document.createElement("div");
+  card.className = "card";
+  card.dataset.id = r.id;
+  var manual = r.source_device === "manual";
+
+  var html = '<div class="card-top"><span class="badge">' + (manual ? "✍️ Manual" : "📡 Probe") +
+             '</span><span class="time">' + esc(r.timestamp) + '</span></div><div class="grid">';
+  html += '<label>Crop<select class="f-crop"></select></label>';
+  html += '<label>Stage<select class="f-stage"></select></label>';
+
+  NUMS.forEach(function (n) {
+    html += '<label>' + n[1] + '<input type="number" step="any" data-f="' + n[0] + '" value="' + fmt(r[n[0]]) + '"></label>';
+  });
+
+  Object.keys(LABELS).forEach(function (key) {
+    html += '<label>' + LABELS[key][0] + '<select data-f="' + key + '"><option value="">-</option>';
+    LABELS[key][1].forEach(function (opt) {
+      html += '<option' + (r[key] === opt ? " selected" : "") + '>' + opt + '</option>';
+    });
+    html += '</select></label>';
+  });
+
+  html += '</div><div class="actions">' +
+          '<button class="primary btn-send">Proceed</button>' +
+          '<button class="btn-share" title="Coming soon">Share</button>' +
+          '<button class="danger btn-del">Delete</button></div>';
+  card.innerHTML = html;
+
+  fillCrops(card, r);
+
+  card.querySelector(".btn-send").onclick = async function () {
+    var saved = await api("/queue/" + r.id, "PUT", collect(card));
+    if (!saved.ok) { alert(saved.message); return; }
+    var sent = await api("/queue/" + r.id + "/send", "POST");
+    if (!sent.ok) { alert(sent.message); return; }
+    showPage("report");
+  };
+
+  card.querySelector(".btn-del").onclick = async function () {
+    if (!confirm("Delete this reading? This cannot be undone.")) return;
+    var d = await api("/queue/" + r.id, "DELETE");
+    if (!d.ok) { alert(d.message); return; }
+    loadQueue();
+  };
+
+  return card;
+}
+
+async function loadQueue() {
+  var box = document.getElementById("queue-list");
+  if (crops.length === 0) {
+    var c = await api("/crops");
+    if (Array.isArray(c)) crops = c;
+  }
+  var rows = await api("/queue");
+  box.innerHTML = "";
+  if (!Array.isArray(rows)) { box.innerHTML = '<p class="empty">' + esc(rows.message) + '</p>'; return; }
+  if (rows.length === 0) {
+    box.innerHTML = '<p class="empty">No readings waiting. Start a session or add a manual reading.</p>';
+    return;
+  }
+  rows.forEach(function (r) { box.appendChild(makeCard(r)); });
+}
+
+async function addManual() {
+  var r = await api("/queue/manual", "POST", {});
+  if (!r.ok) { alert(r.message); return; }
+  loadQueue();
+}
+
+/* ---------- Soil Report ---------- */
+
+function reportCard(h) {
+  var card = document.createElement("div");
+  card.className = "card";
+  var rows = "";
+  Object.keys(NAMES).forEach(function (key) {
+    if (h[key] !== null && h[key] !== undefined) {
+      rows += "<tr><td>" + NAMES[key] + "</td><td>" + esc(typeof h[key] === "number" ? fmt(h[key]) : h[key]) + "</td></tr>";
+    }
+  });
+  card.innerHTML =
+    '<div class="card-top"><span class="pill ' + esc(h.status) + '">' + esc(h.status) + '</span>' +
+    '<span>' + esc(h.crop) + ' · ' + esc(h.stage) + '</span>' +
+    '<span class="time">' + esc(h.timestamp) + '</span></div>' +
+    '<pre class="reco">' + esc(h.recommendation) + '</pre>' +
+    '<div class="actions" style="margin-top:6px"><button class="btn-speak">🔊 Speak</button></div>' +
+    '<details><summary>Raw values</summary><table>' + rows + '</table></details>';
+
+  card.querySelector(".btn-speak").onclick = function () {
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(h.recommendation);
+    u.lang = "en-IN";
+    speechSynthesis.speak(u);
+  };
+  return card;
+}
+
+async function loadReport() {
+  var latestBox = document.getElementById("latest-box");
+  var histBox = document.getElementById("history-list");
+  var rows = await api("/report/history");
+  latestBox.innerHTML = "";
+  histBox.innerHTML = "";
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    latestBox.innerHTML = '<p class="empty">No reports yet. Send a reading from the Queue.</p>';
+    return;
+  }
+  latestBox.appendChild(reportCard(rows[0]));
+  if (rows.length === 1) {
+    histBox.innerHTML = '<p class="empty">No older reports.</p>';
+  }
+  rows.slice(1).forEach(function (h) { histBox.appendChild(reportCard(h)); });
+}
+
+showPage("connect");
+</script>
+</body>
+</html>
