@@ -34,7 +34,7 @@ ESP32 probe --BLE--> Python backend --> Rule engine --> Farmer report
 | LDR light module (analog) | D35 |
 | 16x2 I2C LCD | SDA D21, SCL D22 |
 
-pH and EC sensors are planned. They weren't integrated due to time constraint and stock inavailability. The software already treats them as optional.
+pH and EC sensors are planned. They weren't integrated due to limited time constraint and stock inavailability. The software already treats them as optional.
 
 ## Project structure
 
